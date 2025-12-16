@@ -1,47 +1,64 @@
-import { ref } from 'vue'
-import api from '@/services/api'
+import { ref, computed } from 'vue'
+import { loginApi, registerApi, meApi, logoutApi } from '@/api/auth.api'
 
-const user = ref(null)
+const user = ref(JSON.parse(localStorage.getItem('user')))
 const loading = ref(false)
 
 export function useAuth() {
-  async function login(email, password) {
+
+  const isAuthenticated = computed(() => !!user.value)
+
+  const login = async (email, password) => {
     loading.value = true
     try {
-      const res = await api.post('/auth/login', { email, password })
-      user.value = res.data.data
-      return res
-    } catch (e) {
-      throw e.response?.data || e
+      const { data } = await loginApi({ email, password })
+      localStorage.setItem('token', data.data.token)
+      localStorage.setItem('user', JSON.stringify(data.data.user))
+      user.value = data.data.user
     } finally {
       loading.value = false
     }
   }
 
-  async function register(data) {
+  const register = async payload => {
     loading.value = true
     try {
-      const res = await api.post('/auth/register', data)
-      user.value = res.data.data
-      return res
-    } catch (e) {
-      throw e.response?.data || e
+      const { data } = await registerApi(payload)
+      localStorage.setItem('token', data.data.token)
+      localStorage.setItem('user', JSON.stringify(data.data.user))
+      user.value = data.data.user
     } finally {
       loading.value = false
     }
   }
 
-  async function logout() {
-    loading.value = true
+  const fetchUser = async () => {
+    if (!localStorage.getItem('token')) return
     try {
-      await api.post('/auth/logout')
-      user.value = null
-    } catch (e) {
-      console.error(e)
-    } finally {
-      loading.value = false
+      const { data } = await meApi()
+      user.value = data.data
+      localStorage.setItem('user', JSON.stringify(data.data))
+    } catch {
+      logout()
     }
   }
 
-  return { user, loading, login, register, logout }
+  const logout = async () => {
+    try {
+      await logoutApi()
+    } catch {}
+    localStorage.clear()
+    user.value = null
+    window.location.href = '/login'
+  }
+
+  return {
+    user,
+    loading,
+    isAuthenticated,
+    login,
+    register,
+    fetchUser,
+    logout,
+  }
 }

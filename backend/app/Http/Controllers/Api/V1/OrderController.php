@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\StoreOrderRequest;
+use App\Http\Resources\Api\V1\OrderResource;
 use App\Http\Traits\ApiResponseTrait;
 use App\Models\Order;
+use App\Models\User;
 use App\Services\V1\OrderMatchingService;
 use App\Services\V1\WalletService;
 use Illuminate\Http\Request;
@@ -36,7 +38,7 @@ class OrderController extends Controller
 
             $this->matchingService->match($order);
 
-            return $this->success($order, 'Order placed successfully', 201);
+            return $this->success(new OrderResource($order), 'Order placed successfully', 201);
 
         } catch (\Throwable $e) {
             return $this->error($e->getMessage(), null, 422);
@@ -47,30 +49,19 @@ class OrderController extends Controller
     {
         return DB::transaction(function () use ($request) {
 
-            $user = $request->user()
-                ->lockForUpdate()
-                ->first();
+            $authUser = $request->user();
 
-            $orderValue = bcmul(
-                $request->amount,
-                $request->price,
-                config('constant.decimal.price')
-            );
-
-            $commissionReserve = bcmul(
-                $orderValue,
-                config('constant.commission_rate'),
-                config('constant.decimal.price')
-            );
-
-            $totalReserve = bcadd(
-                $orderValue,
-                $commissionReserve,
-                config('constant.decimal.price')
-            );
-
+            $user = User::where('id', $authUser->id)
+            ->lockForUpdate()
+            ->first();
+            
+            
+            $orderValue = bcmul($request->amount, $request->price, config('constant.decimal.price'));
+            $commission = bcmul($orderValue, config('constant.commission_rate'), config('constant.decimal.price'));
+            $totalReserve = bcadd($orderValue, $commission, config('constant.decimal.price'));
+            
             if (bccomp($user->balance, $totalReserve, config('constant.decimal.price')) < 0) {
-                throw new \Exception('Insufficient balance');
+                throw new \Exception('Insufficient balance for order + commission');
             }
 
             $this->walletService->lockUsd($user, $totalReserve);
@@ -90,10 +81,12 @@ class OrderController extends Controller
     private function createSellOrder(StoreOrderRequest $request): Order
     {
         return DB::transaction(function () use ($request) {
+            
+            $authUser = $request->user();
 
-            $user = $request->user()
-                ->lockForUpdate()
-                ->first();
+            $user = User::where('id', $authUser->id)
+            ->lockForUpdate()
+            ->first();
 
             $this->walletService->lockAsset(
                 $user,
@@ -158,11 +151,29 @@ class OrderController extends Controller
 
     public function index(Request $request)
     {
-        $orders = $request->user()
-            ->orders()
-            ->latest()
-            ->paginate(20);
+        $query = $request->user()->orders();
+        
+        if ($request->filled('symbol')) {
+            $query->where('symbol', $request->symbol);
+        }
 
-        return $this->success($orders);
+        if ($request->filled('side')) {
+            $query->where('side', $request->side);
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        
+        $sortBy = $request->get('sortBy', 'id'); 
+        $sortDir = $request->get('sortDir', 'desc');
+        $query->orderBy($sortBy, $sortDir);
+        
+        $perPage = (int) $request->get('perPage', config('constant.pagination.per_page'));
+        $orders = $query->paginate($perPage);
+        
+        return $this->paginated(OrderResource::collection($orders));
     }
+
 }

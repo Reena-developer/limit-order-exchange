@@ -1,6 +1,13 @@
 <template>
-  <nav class="bg-white shadow px-6 py-3 flex justify-between">
-    <h1 class="font-semibold text-lg">Limit Order Exchange</h1>
-    <button class="text-sm text-red-600">Logout</button>
+  <nav class="flex justify-between p-4 bg-gray-100">
+    <div>Limit Order Exchange</div>
+    <div>
+      <button v-if="user" @click="logout" class="btn">Logout</button>
+    </div>
   </nav>
 </template>
+
+<script setup>
+import { useAuth } from '@/composables/useAuth'
+const { user, logout } = useAuth()
+</script>
