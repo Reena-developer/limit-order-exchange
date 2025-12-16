@@ -1,11 +1,12 @@
 <?php
+
 namespace App\Services\V1;
 
 use App\Models\Order;
 use App\Models\Trade;
 use App\Enums\OrderStatus;
 use Illuminate\Support\Facades\DB;
-use App\Services\V1\WalletService;
+use App\Events\OrderMatched;
 
 class OrderMatchingService
 {
@@ -64,23 +65,26 @@ class OrderMatchingService
             $buyer  = $buyOrder->user()->lockForUpdate()->first();
             $seller = $sellOrder->user()->lockForUpdate()->first();
 
-            // Buyer
-            $this->walletService->debitUsd($buyer, $commission);
             $this->walletService->creditAsset($buyer, $buyOrder->symbol, $tradeAmount);
-
-            // Seller
             $this->walletService->creditUsd($seller, $tradeValue);
             $this->walletService->unlockAsset($seller, $sellOrder->symbol, $tradeAmount);
 
-            // Release unused USD lock (price improvement case)
-            $refund = bcsub($buyOrder->locked_amount, bcadd($tradeValue, $commission, 8), 8);
-            if (bccomp($refund, '0', 8) === 1) {
+            $used = bcadd($tradeValue, $commission, config('constant.decimal.price'));
+            $refund = bcsub($buyOrder->locked_amount, $used, config('constant.decimal.price'));
+
+            if (bccomp($refund, '0', config('constant.decimal.price')) === 1) {
                 $this->walletService->creditUsd($buyer, $refund);
             }
 
-            // Orders
-            $buyOrder->update(['status' => OrderStatus::FILLED, 'locked_amount' => 0]);
-            $sellOrder->update(['status' => OrderStatus::FILLED, 'locked_amount' => 0]);
+            $buyOrder->update([
+                'status' => OrderStatus::FILLED,
+                'locked_amount' => 0,
+            ]);
+
+            $sellOrder->update([
+                'status' => OrderStatus::FILLED,
+                'locked_amount' => 0,
+            ]);
 
             Trade::create([
                 'buy_order_id'  => $buyOrder->id,

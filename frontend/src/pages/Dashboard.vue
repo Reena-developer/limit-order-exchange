@@ -7,17 +7,24 @@ import OrderForm from '@/components/OrderForm.vue'
 import OrderBook from '@/components/OrderBook.vue'
 import OrdersTable from '@/components/OrdersTable.vue'
 import { useOrders } from '@/composables/useOrders'
-import { useMockData } from '@/composables/useMockData'
+import { useAuth } from '@/composables/useAuth'
 import { orderColumns } from '@/components/orders.columns'
+import { useMockData } from '@/composables/useMockData'
+const orderBook  = useMockData()
 
-const { user, orderBook } = useMockData()
-const { rows, loading, getOrders, updateParams } = useOrders()
+const { user, fetchUser } = useAuth()
+const { rows, meta, loading, params, getOrders, updateParams, changePage } = useOrders()
 
-onMounted(getOrders)
+onMounted(async () => {
+  await fetchUser()
+  await getOrders()
+})
+
 onMounted(() => {
   echo.channel('trades')
-    .listen('TradeExecuted', (e) => {
+    .listen('TradeExecuted', e => {
       console.log('Trade executed:', e)
+      getOrders()
     })
 })
 </script>
@@ -33,11 +40,15 @@ onMounted(() => {
 
     <div class="md:col-span-2 space-y-6">
       <OrderBook :orderBook="orderBook" />
+      
       <OrdersTable
         :rows="rows"
-        :columns="orderColumns"
         :loading="loading"
-        :onParamsChange="updateParams"
+        :meta="meta"
+        :params="params"
+        :columns="orderColumns"
+        @params-change="updateParams"
+        @page-change="changePage"
       />
     </div>
   </div>
