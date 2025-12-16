@@ -22,7 +22,7 @@ The system focuses on **financial data integrity**, **real-time order matching**
 
 ### Backend
 
-* **Laravel** 10.x
+* **Laravel** 11.x
 * **PHP** 8.2
 
 ### Frontend
