@@ -4,13 +4,10 @@ import echo from '@/bootstrap/echo'
 import Navbar from '@/components/Navbar.vue'
 import WalletSummary from '@/components/WalletSummary.vue'
 import OrderForm from '@/components/OrderForm.vue'
-import OrderBook from '@/components/OrderBook.vue'
 import OrdersTable from '@/components/OrdersTable.vue'
 import { useOrders } from '@/composables/useOrders'
 import { useAuth } from '@/composables/useAuth'
 import { orderColumns } from '@/components/orders.columns'
-import { useMockData } from '@/composables/useMockData'
-const orderBook  = useMockData()
 
 const { user, fetchUser } = useAuth()
 const { rows, meta, loading, params, getOrders, updateParams, changePage } = useOrders()
@@ -18,15 +15,18 @@ const { rows, meta, loading, params, getOrders, updateParams, changePage } = use
 onMounted(async () => {
   await fetchUser()
   await getOrders()
-})
 
-onMounted(() => {
-  echo.channel('trades')
-    .listen('TradeExecuted', e => {
-      console.log('Trade executed:', e)
+  const userId = user.value.id
+  echo.private(`user.${user.value.id}`)
+    .listen('OrderMatched', (event) => {
+      console.log('Private order matched:', event)
+      fetchUser()   
       getOrders()
     })
 })
+
+
+
 </script>
 
 <template>
@@ -39,7 +39,7 @@ onMounted(() => {
     </div>
 
     <div class="md:col-span-2 space-y-6">
-      <OrderBook :orderBook="orderBook" />
+      
       
       <OrdersTable
         :rows="rows"

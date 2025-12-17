@@ -4,6 +4,7 @@ import { useForm, useField } from 'vee-validate'
 import * as yup from 'yup'
 import { useOrderForm } from '@/composables/useOrderForm'
 import { useOrders } from '@/composables/useOrders'
+import { useAuth } from '@/composables/useAuth'
 
 const schema = yup.object({
   symbol: yup.string().required('Symbol is required'),
@@ -21,6 +22,7 @@ const { value: price } = useField('price', schema.fields.price)
 
 const { placeOrder, loading, error } = useOrderForm()
 const { getOrders } = useOrders()
+const { fetchUser } = useAuth()
 
 const submitOrder = handleSubmit(async (values) => {
   try {
@@ -39,6 +41,7 @@ const submitOrder = handleSubmit(async (values) => {
     })
     
     getOrders()
+    fetchUser()
     alert('Order placed successfully!')
   } catch (err) {
     console.log(err)

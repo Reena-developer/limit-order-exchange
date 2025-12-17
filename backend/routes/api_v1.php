@@ -36,4 +36,5 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::get('/trades', [TradeController::class, 'index']);
+
 });
